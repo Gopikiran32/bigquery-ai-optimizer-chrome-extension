@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "BigQuery AI Query Optimizer",
+  "version": "1.0.0",
+  "description": "Audit and optimize BigQuery SQL directly in the Cloud Console. Costs, partition filters and SELECT * warnings, powered by your own Vertex AI backend.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardRead",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://console.cloud.google.com/*",
+    "https://*.cloudfunctions.net/*",
+    "https://*.run.app/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://console.cloud.google.com/*"],
+      "js": ["page-script.js"],
+      "run_at": "document_idle",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://console.cloud.google.com/*"],
+      "js": ["content.js"],
+      "css": ["optimizer.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

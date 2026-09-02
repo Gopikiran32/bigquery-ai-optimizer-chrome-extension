@@ -1,0 +1,47 @@
+# ─── Your organisation's private context ─────────────────────────────
+# Never commit this. Only the .example version belongs in git.
+cloud-function/org-context.txt
+
+# ─── Local config / secrets ──────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+service-account*.json
+credentials*.json
+
+# ─── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+venv/
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ─── gcloud / deployment artifacts ───────────────────────────────────
+.gcloudignore
+*.zip
+
+# ─── Editors ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── OS ──────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini

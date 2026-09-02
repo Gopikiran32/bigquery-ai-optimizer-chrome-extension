@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTIONAL: your organisation's data platform context
+#
+# The optimizer works fine without this file — it already reads live
+# partitioning, clustering, schema and size information straight from the
+# BigQuery API for every table in your query.
+#
+# What this file adds is the knowledge the API *cannot* tell the model:
+# which project is which, your naming conventions, and — most valuable —
+# which cheaper table a user should have queried instead.
+#
+# HOW TO USE
+#   1. Copy this file:   cp org-context.example.txt org-context.txt
+#   2. Replace the example content below with your own.
+#   3. Deploy. `org-context.txt` is git-ignored, so your internal details
+#      never leave your machine or land in a public repo.
+#
+#   Alternatively, set the ORG_CONTEXT environment variable instead of using
+#   a file (the env var wins if both are present):
+#     gcloud functions deploy ... --set-env-vars="ORG_CONTEXT=$(cat org-context.txt)"
+#
+# TIPS
+#   - Keep it under ~40 lines. It is prepended to every request, so long
+#     context costs tokens on every single analysis.
+#   - Lines starting with # are sent to the model too — they are not stripped.
+#     That is fine, but keep comments short.
+#   - Be concrete about *alternatives*: "X is a full snapshot, prefer Y for
+#     incremental reads" is the single highest-value thing you can write here.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ==== EVERYTHING BELOW IS A FICTIONAL EXAMPLE — REPLACE IT ====
+
+GCP PROJECTS
+- acme-data-raw: raw ingestion landing zone. Nothing here is modelled; expect wide tables.
+- acme-warehouse-prod: production dbt models. This is what analysts should query.
+- acme-warehouse-dev: developer sandbox. Never reference from scheduled queries.
+
+KEY DATASETS
+- acme-data-raw.db_snapshots: nightly full snapshots of the application database.
+  Tables are NOT partitioned and are re-written daily — any query is a full scan.
+- acme-data-raw.db_cdc: change-data-capture streams for the same tables, suffixed
+  with _log, partitioned on _PARTITIONTIME. Prefer these for incremental reads.
+- acme-data-raw.app_events: raw event stream, partitioned on event_timestamp
+  (TIMESTAMP), clustered by (event_name, user_id). Multi-TB — a partition filter
+  is mandatory; reject any query against it without one.
+- acme-warehouse-prod.core: modelled fact_* and dim_* tables. Facts are
+  partitioned on activity_date (DATE); dimensions are small and unpartitioned.
+- acme-warehouse-prod.reporting: pre-aggregated daily rollups. If a query is only
+  producing daily or monthly totals, recommend the matching rollup table here
+  instead of aggregating a fact table from scratch.
+
+CONVENTIONS
+- Every table in acme-data-raw carries an ingested_at TIMESTAMP column.
+- fact_* tables are always partitioned on activity_date and clustered by country.
+- Anything named *_pii requires an approved access grant; flag queries that touch it.
+- All datasets live in a single region. Cross-region joins will fail, not just cost
+  more — flag them as errors rather than warnings.
+
+COST GUARDRAILS
+- Analysts are expected to keep ad-hoc queries under ~200 GB scanned.
+- Default to the last 30 days unless the query clearly needs full history.
