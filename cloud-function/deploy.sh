@@ -3,9 +3,13 @@
 # Deploy the BigQuery AI Query Optimizer Cloud Function to your own GCP project.
 #
 # Usage:
-#   PROJECT_ID=my-project REGION=us-central1 ./deploy.sh
+#   PROJECT_ID=my-project REGION=<your-region> ./deploy.sh
 #
 # Or export the variables once in your shell, or edit the defaults below.
+#
+# Pick REGION deliberately: it is where your SQL and table schemas get
+# processed, and it should normally sit close to (and under the same data
+# residency rules as) the BigQuery data you query.
 #
 # Prerequisites — enable these APIs in the target project:
 #   gcloud services enable cloudfunctions.googleapis.com \
@@ -20,11 +24,36 @@
 set -euo pipefail
 
 # ── Configuration ───────────────────────────────────────────────────────
-# Falls back to your active gcloud project if PROJECT_ID is not set.
-PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 
-# Must be a region where your chosen Gemini model is available.
-REGION="${REGION:-us-central1}"
+# Reads a gcloud config value, normalising the "unset" output that older
+# gcloud versions print to stdout.
+gcloud_cfg() {
+  local v
+  v="$(gcloud config get-value "$1" 2>/dev/null)"
+  [[ "$v" == "(unset)" || "$v" == "None" ]] && v=""
+  printf '%s' "$v"
+}
+
+# Falls back to your active gcloud project if PROJECT_ID is not set.
+PROJECT_ID="${PROJECT_ID:-$(gcloud_cfg project)}"
+
+# Region to deploy the function into. We prefer your own gcloud configuration
+# over a hardcoded guess, so this only lands on us-central1 if you have not
+# expressed a preference anywhere.
+REGION_IS_GUESS=false
+REGION="${REGION:-$(gcloud_cfg functions/region)}"
+[[ -z "${REGION}" ]] && REGION="$(gcloud_cfg compute/region)"
+if [[ -z "${REGION}" ]]; then
+  REGION="us-central1"
+  REGION_IS_GUESS=true
+fi
+
+# Where the Vertex AI calls are made. Defaults to the function's own region,
+# but can be set independently — useful when the region you want to deploy
+# into does not serve your chosen Gemini model. Note that this is the region
+# your SQL and table schemas are processed in, so it is the one that matters
+# for data residency.
+VERTEX_LOCATION="${VERTEX_LOCATION:-$REGION}"
 
 FUNCTION_NAME="${FUNCTION_NAME:-bq-query-optimizer}"
 RUNTIME="${RUNTIME:-python311}"
@@ -56,9 +85,18 @@ cd "$(dirname "$0")"
 echo "Deploying Cloud Function: ${FUNCTION_NAME}"
 echo "  Project:   ${PROJECT_ID}"
 echo "  Region:    ${REGION}"
+echo "  Vertex AI: ${VERTEX_LOCATION}"
 echo "  Runtime:   ${RUNTIME}"
 echo "  Model:     ${MODEL_NAME}"
 echo "  Threshold: ${DRY_RUN_THRESHOLD_GB} GB"
+
+if [[ "${REGION_IS_GUESS}" == "true" ]]; then
+  echo
+  echo "  WARNING: no region was set and gcloud has no default configured, so"
+  echo "           this falls back to us-central1 (Iowa, USA). Your SQL and"
+  echo "           table schemas would be processed there. If that is not what"
+  echo "           you want, re-run with e.g. REGION=europe-west1 ./deploy.sh"
+fi
 echo "  Service account: ${SERVICE_ACCOUNT:-<project default compute SA>}"
 
 if [[ -f org-context.txt ]]; then
@@ -76,7 +114,7 @@ echo
 
 # ── Build the deploy command ────────────────────────────────────────────
 ENV_VARS="GCP_PROJECT=${PROJECT_ID}"
-ENV_VARS+=",VERTEX_LOCATION=${REGION}"
+ENV_VARS+=",VERTEX_LOCATION=${VERTEX_LOCATION}"
 ENV_VARS+=",MODEL_NAME=${MODEL_NAME}"
 ENV_VARS+=",DRY_RUN_THRESHOLD_GB=${DRY_RUN_THRESHOLD_GB}"
 

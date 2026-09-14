@@ -88,7 +88,7 @@ git clone https://github.com/Gopikiran32/bigquery-ai-optimizer-chrome-extension.
 cd bigquery-ai-optimizer-chrome-extension
 
 export PROJECT_ID="your-project-id"
-export REGION="us-central1"
+export REGION="your-region"        # e.g. europe-west1, us-central1, asia-northeast1
 
 gcloud services enable \
   cloudfunctions.googleapis.com \
@@ -107,7 +107,15 @@ cd cloud-function
 ./deploy.sh
 ```
 
-`deploy.sh` reads `PROJECT_ID` and `REGION` from your environment, falls back to your active gcloud project, and prints the function URL when it finishes. **Copy that URL** — you need it in step 3.
+`deploy.sh` reads `PROJECT_ID` and `REGION` from your environment, falls back to your gcloud configuration for both, and prints the function URL when it finishes. **Copy that URL** — you need it in step 3.
+
+Choose the region deliberately rather than taking the first example above. It is where your SQL and your table schemas get sent for processing, so it should sit under the same data residency rules as the BigQuery data you are querying — an EU team deploying to `us-central1` by accident is sending query text and schema to Iowa. It also has to be a region that serves your chosen Gemini model, and those two constraints occasionally conflict. When they do, you can split them: deploy the function where you need it and point Vertex AI somewhere else that still satisfies your residency requirements.
+
+```bash
+REGION="europe-north1" VERTEX_LOCATION="europe-west4" ./deploy.sh
+```
+
+If you set neither `REGION` nor a gcloud default, the script warns you loudly before falling back to `us-central1`.
 
 If you did not set `SERVICE_ACCOUNT`, the function runs as your project's default compute service account. Grant it read access to BigQuery:
 
@@ -169,7 +177,7 @@ Treat the rewrite as a strong suggestion, not gospel. It is generated code again
 | Variable | Default | What it does |
 |----------|---------|--------------|
 | `GCP_PROJECT` | the deployed project | Project used for the BigQuery and Vertex AI clients |
-| `VERTEX_LOCATION` | `us-central1` | Vertex AI region; must support your model |
+| `VERTEX_LOCATION` | the function's own region | Where Vertex AI processes your SQL and schemas; must serve your model |
 | `MODEL_NAME` | `gemini-2.5-flash-lite` | Any Gemini model your project can call |
 | `DRY_RUN_THRESHOLD_GB` | `250` | Below this, the extension flags the query as too small to be worth optimizing |
 | `ORG_CONTEXT` | unset | Free-text description of your warehouse; see below |
@@ -230,7 +238,9 @@ Whichever you choose: the function only ever needs **read** access to BigQuery. 
 If your analysts query tables across several projects, the function's service account needs metadata access in each one, or the AI falls back to reasoning without schema information and the advice gets noticeably worse.
 
 ```bash
-FUNCTION_SA="PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+HOST_PROJECT="the-project-the-function-runs-in"
+PROJECT_NUMBER=$(gcloud projects describe "$HOST_PROJECT" --format='value(projectNumber)')
+FUNCTION_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
 for TARGET in project-a project-b project-c; do
   for ROLE in roles/bigquery.dataViewer roles/bigquery.metadataViewer; do
