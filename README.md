@@ -84,7 +84,7 @@ You need two things: the backend deployed in your GCP project, and the extension
 Clone the repo and enable the APIs the function needs:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/bigquery-ai-optimizer-chrome-extension.git
+git clone https://github.com/Gopikiran32/bigquery-ai-optimizer-chrome-extension.git
 cd bigquery-ai-optimizer-chrome-extension
 
 export PROJECT_ID="your-project-id"
